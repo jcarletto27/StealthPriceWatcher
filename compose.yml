@@ -1,0 +1,14 @@
+services:
+  price-tracker:
+    build: .
+    container_name: price-tracker-app
+    restart: unless-stopped
+    ports:
+      - "8821:8000" # Maps port 8821 on your host to 8000 in the container
+    env_file:
+      - .env
+    volumes:
+      # This maps the database file to your host so you don't lose data when the container restarts
+      - ./tracker.db:/app/tracker.db
+      # Optional: Map the code so you can live-edit HTML without rebuilding the image
+      - ./index.html:/app/index.html
