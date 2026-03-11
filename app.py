@@ -131,11 +131,20 @@ def scrape_product(product_id: int):
         if name_element:
             product_name = name_element.text.strip()
 
-        price_element = soup.select_one(product['price_selector'])
-        if price_element:
-            clean_price = re.sub(r'[^\d.]', '', price_element.text.strip())
-            if clean_price:
-                price = float(clean_price)
+        # Extract Price (Loop through all matches and find the lowest)
+        price_elements = soup.select(product['price_selector'])
+        if price_elements:
+            extracted_prices = []
+            for el in price_elements:
+                clean_price = re.sub(r'[^\d.]', '', el.text.strip())
+                if clean_price:
+                    try:
+                        extracted_prices.append(float(clean_price))
+                    except ValueError:
+                        pass # Ignore if it can't be parsed into a float
+            
+            if extracted_prices:
+                price = min(extracted_prices)
 
         if price:
             c.execute("UPDATE products SET name = ?, last_status = 'success', last_error = NULL WHERE id = ?", (product_name, product_id))
