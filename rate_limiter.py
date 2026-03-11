@@ -1,23 +1,24 @@
-# rate_limiter.py
 import time
 import tldextract
 from collections import deque
+
+# GLOBAL memory so it persists across different scraper instances and background jobs
+GLOBAL_DOMAIN_HISTORY = {}
 
 class DomainRateLimiter:
     def __init__(self, max_requests=2, period_seconds=60):
         self.max_requests = max_requests
         self.period = period_seconds
-        self.domain_history = {} # Stores { 'amazon.com': deque([time1, time2]) }
 
     def wait_if_needed(self, url):
-        # Extract the root domain (e.g., 'amazon.com' from 'www.amazon.com/item')
+        # Extract the root domain (e.g., 'amazon.com')
         extracted = tldextract.extract(url)
         domain = f"{extracted.domain}.{extracted.suffix}"
 
-        if domain not in self.domain_history:
-            self.domain_history[domain] = deque(maxlen=self.max_requests)
+        if domain not in GLOBAL_DOMAIN_HISTORY:
+            GLOBAL_DOMAIN_HISTORY[domain] = deque(maxlen=self.max_requests)
 
-        history = self.domain_history[domain]
+        history = GLOBAL_DOMAIN_HISTORY[domain]
 
         # If we have hit our max request limit for this domain...
         if len(history) == self.max_requests:

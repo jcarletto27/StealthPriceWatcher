@@ -2,6 +2,8 @@ from fastapi import FastAPI, BackgroundTasks, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional
+from contextlib import asynccontextmanager
+from apscheduler.schedulers.background import BackgroundScheduler
 import sqlite3
 import tldextract
 import re
@@ -22,8 +24,38 @@ SMTP_PORT = int(os.getenv("SMTP_PORT", 465))
 SMTP_USER = os.getenv("SMTP_USER", "PriceAlerts@mail.jcarletto.com")
 SMTP_PASS = os.getenv("SMTP_PASS")
 
-app = FastAPI()
-init_db()
+# --- SCHEDULER SETUP ---
+def run_scheduled_scrapes():
+    print("[Scheduler] Starting routine batch scrape...")
+    conn = get_db_connection()
+    try:
+        # Fetch all product IDs from the database
+        products = conn.execute("SELECT id FROM products").fetchall()
+        for p in products:
+            # The rate limiter inside StealthScraper will automatically pause this loop 
+            # if we hit the same domain too many times rapidly.
+            scrape_product(p['id'])
+    except Exception as e:
+        print(f"[Scheduler] Error during batch scrape: {e}")
+    finally:
+        conn.close()
+    print("[Scheduler] Routine batch scrape complete.")
+
+scheduler = BackgroundScheduler()
+# Schedule the job to run every 6 hours (4 times a day)
+scheduler.add_job(run_scheduled_scrapes, 'interval', hours=6)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup Events
+    init_db()
+    scheduler.start()
+    print("Background scheduler started (Running every 6 hours).")
+    yield
+    # Shutdown Events
+    scheduler.shutdown()
+
+app = FastAPI(lifespan=lifespan)
 
 # --- Pydantic Models ---
 class TrackRequest(BaseModel):
@@ -64,7 +96,6 @@ def send_alert_email(to_email: str, subject: str, html_body: str):
     msg.attach(MIMEText(html_body, 'html'))
     
     try:
-        # Port 465 requires SMTP_SSL (Implicit SSL)
         with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT) as server:
             server.login(SMTP_USER, SMTP_PASS)
             server.send_message(msg)
@@ -114,7 +145,6 @@ def scrape_product(product_id: int):
             
             # --- EVALUATE ALERTS ---
             if product['alert_email']:
-                # Get the previous price to prevent spam
                 c.execute("SELECT price FROM prices WHERE product_id = ? ORDER BY timestamp DESC LIMIT 2", (product_id,))
                 recent = c.fetchall()
                 prev_price = recent[1]['price'] if len(recent) > 1 else None
@@ -123,20 +153,16 @@ def scrape_product(product_id: int):
                 subject = f"Price Alert: {product_name}"
                 body = f"<h2>Price Update for {product_name}</h2>"
                 
-                # 1. Threshold Check (Only alert if it drops below threshold AND is lower than the previous scan)
                 threshold = product['alert_threshold']
                 if threshold and price <= threshold:
                     if prev_price is None or price < prev_price:
                         send_email = True
                         body += f"<p>🔥 The price has dropped to <b>${price:.2f}</b>, which is below your target of ${threshold:.2f}!</p>"
                 
-                # 2. Lowest in 30 Days Check
                 if product['alert_lowest_30d']:
-                    # Get lowest price excluding the one we just inserted
                     c.execute("SELECT MIN(price) as min_p FROM prices WHERE product_id = ? AND id != ? AND timestamp >= datetime('now', '-30 days')", (product_id, new_price_id))
                     min_30d = c.fetchone()['min_p']
                     
-                    # If there's a history and current is lower than anything in the last 30 days
                     if min_30d is not None and price < min_30d:
                         send_email = True
                         subject = f"30-Day Low! {product_name}"
