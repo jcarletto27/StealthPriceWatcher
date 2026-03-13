@@ -1,5 +1,6 @@
 from fastapi import FastAPI, BackgroundTasks, HTTPException
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional
 from contextlib import asynccontextmanager
@@ -23,6 +24,9 @@ SMTP_SERVER = os.getenv("SMTP_SERVER", "mail.jcarletto.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", 465))
 SMTP_USER = os.getenv("SMTP_USER", "PriceAlerts@mail.jcarletto.com")
 SMTP_PASS = os.getenv("SMTP_PASS")
+
+# Ensure screenshots directory exists
+os.makedirs("screenshots", exist_ok=True)
 
 # --- SCHEDULER SETUP ---
 def run_scheduled_scrapes():
@@ -56,6 +60,9 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown()
 
 app = FastAPI(lifespan=lifespan)
+
+# Mount the screenshots directory so the UI can access the images
+app.mount("/screenshots", StaticFiles(directory="screenshots"), name="screenshots")
 
 # --- Pydantic Models ---
 class TrackRequest(BaseModel):
@@ -123,6 +130,9 @@ def scrape_product(product_id: int):
     scraper = StealthScraper()
     try:
         soup = scraper.fetch_page(product['url'])
+        
+        # Take a screenshot of the current page state
+        scraper.take_screenshot(f"screenshots/{product_id}.png")
         
         price = None
         product_name = product['name']

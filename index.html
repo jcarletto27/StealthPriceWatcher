@@ -119,6 +119,15 @@
                 <button id="deleteBtn" class="px-4 border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg font-medium transition">Delete</button>
             </div>
 
+            <!-- Screenshot -->
+            <div class="mb-8">
+                <h3 class="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">Latest Screenshot</h3>
+                <div class="bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden relative">
+                    <img id="flyoutScreenshot" src="" alt="Latest Scrape" class="w-full h-auto object-cover border-0" 
+                         onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'100%\' height=\'200\'><rect width=\'100%\' height=\'100%\' fill=\'%231e293b\'/><text x=\'50%\' y=\'50%\' dominant-baseline=\'middle\' text-anchor=\'middle\' font-family=\'sans-serif\' font-size=\'14\' fill=\'%2394a3b8\'>No screenshot available</text></svg>'">
+                </div>
+            </div>
+
             <div class="mb-8">
                 <h3 class="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">Price History</h3>
                 <div class="bg-slate-50 dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
@@ -256,6 +265,9 @@
                 errBanner.classList.remove('hidden');
                 document.getElementById('flyoutErrorText').textContent = product.last_error;
             } else errBanner.classList.add('hidden');
+
+            // Load the latest screenshot with a cache-buster timestamp so it doesn't show old images
+            document.getElementById('flyoutScreenshot').src = `/screenshots/${product.id}.png?t=${new Date().getTime()}`;
 
             await loadChartData(product.id);
             document.getElementById('flyoutOverlay').classList.remove('hidden');
