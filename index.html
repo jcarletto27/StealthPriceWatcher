@@ -57,14 +57,22 @@
                     <input type="text" id="nameSelector" placeholder="Name Selector (.title)" required class="flex-1 px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:text-white">
                     <input type="text" id="priceSelector" placeholder="Price Selector (.price)" required class="flex-1 px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:text-white">
                 </div>
-                <div class="flex flex-col md:flex-row gap-4 items-center bg-slate-50 dark:bg-slate-900/50 p-4 rounded-lg border border-slate-200 dark:border-slate-700">
-                    <input type="email" id="alertEmail" placeholder="Alert Email Address (Optional)" class="flex-[2] px-4 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:text-white text-sm">
-                    <input type="number" step="0.01" id="alertThreshold" placeholder="Target Price (e.g. 49.99)" class="flex-1 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:text-white text-sm">
-                    <label class="flex items-center gap-2 flex-1 text-sm text-slate-600 dark:text-slate-300 cursor-pointer">
-                        <input type="checkbox" id="alertLowest" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4">
-                        Alert on 30-Day Low
-                    </label>
-                    <button type="submit" class="bg-blue-600 text-white px-8 py-2 rounded-lg font-medium hover:bg-blue-700 transition whitespace-nowrap">Add Item</button>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <div class="space-y-3">
+                        <input type="email" id="alertEmail" placeholder="Alert Email Address (Optional)" class="w-full px-4 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:text-white text-sm">
+                        <div class="flex gap-4">
+                            <input type="number" step="0.01" id="alertThreshold" placeholder="Target Price ($)" class="flex-1 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:text-white text-sm">
+                            <label class="flex items-center gap-2 flex-1 text-sm text-slate-600 dark:text-slate-300 cursor-pointer">
+                                <input type="checkbox" id="alertLowest" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4">
+                                30-Day Low
+                            </label>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-2">
+                        <textarea id="cookiesInput" placeholder="Paste JSON Cookies Here (Optional) - to bypass age checks" rows="2" class="w-full px-4 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:text-white text-sm font-mono"></textarea>
+                        <button type="submit" class="w-full bg-blue-600 text-white px-8 py-2 rounded-lg font-medium hover:bg-blue-700 transition">Add Item</button>
+                    </div>
                 </div>
             </form>
         </section>
@@ -89,7 +97,7 @@
 
     <!-- Fly-out Panel -->
     <div id="flyoutOverlay" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 hidden opacity-0 transition-opacity duration-300"></div>
-    <div id="flyoutPanel" class="fixed top-0 right-0 h-full w-full md:w-[500px] bg-white dark:bg-slate-800 shadow-2xl z-50 transform translate-x-full transition-transform duration-300 ease-in-out border-l border-slate-200 dark:border-slate-700 overflow-y-auto">
+    <div id="flyoutPanel" class="fixed top-0 right-0 h-full w-full md:w-[600px] bg-white dark:bg-slate-800 shadow-2xl z-50 transform translate-x-full transition-transform duration-300 ease-in-out border-l border-slate-200 dark:border-slate-700 overflow-y-auto">
         <div class="p-6">
             <div class="flex justify-between items-start mb-6">
                 <div>
@@ -151,6 +159,10 @@
                             <label class="block text-sm text-slate-600 dark:text-slate-400 mb-1">Price Selector</label>
                             <input type="text" id="editPriceSel" required class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:text-white text-sm">
                         </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-slate-600 dark:text-slate-400 mb-1">Cookies (JSON Array)</label>
+                        <textarea id="editCookiesJson" rows="3" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:text-white text-sm font-mono" placeholder="[{'name': '...', 'value': '...'}]"></textarea>
                     </div>
                     <div class="pt-4 border-t border-slate-200 dark:border-slate-700">
                         <label class="block text-sm text-slate-600 dark:text-slate-400 mb-1">Alert Email</label>
@@ -256,6 +268,7 @@
             document.getElementById('editUrl').value = product.url;
             document.getElementById('editNameSel').value = product.name_selector;
             document.getElementById('editPriceSel').value = product.price_selector;
+            document.getElementById('editCookiesJson').value = product.cookies_json || '';
             document.getElementById('editAlertEmail').value = product.alert_email || '';
             document.getElementById('editAlertThreshold').value = product.alert_threshold || '';
             document.getElementById('editAlertLowest').checked = product.alert_lowest_30d || false;
@@ -266,7 +279,6 @@
                 document.getElementById('flyoutErrorText').textContent = product.last_error;
             } else errBanner.classList.add('hidden');
 
-            // Load the latest screenshot with a cache-buster timestamp so it doesn't show old images
             document.getElementById('flyoutScreenshot').src = `/screenshots/${product.id}.png?t=${new Date().getTime()}`;
 
             await loadChartData(product.id);
@@ -318,6 +330,7 @@
                     url: document.getElementById('urlInput').value,
                     name_selector: document.getElementById('nameSelector').value,
                     price_selector: document.getElementById('priceSelector').value,
+                    cookies_json: document.getElementById('cookiesInput').value || null,
                     alert_email: document.getElementById('alertEmail').value || null,
                     alert_threshold: threshold ? parseFloat(threshold) : null,
                     alert_lowest_30d: document.getElementById('alertLowest').checked
@@ -354,6 +367,7 @@
                     url: document.getElementById('editUrl').value,
                     name_selector: document.getElementById('editNameSel').value,
                     price_selector: document.getElementById('editPriceSel').value,
+                    cookies_json: document.getElementById('editCookiesJson').value || null,
                     alert_email: document.getElementById('editAlertEmail').value || null,
                     alert_threshold: threshold ? parseFloat(threshold) : null,
                     alert_lowest_30d: document.getElementById('editAlertLowest').checked

@@ -10,6 +10,7 @@ import tldextract
 import re
 import os
 import smtplib
+import json
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
@@ -36,8 +37,6 @@ def run_scheduled_scrapes():
         # Fetch all product IDs from the database
         products = conn.execute("SELECT id FROM products").fetchall()
         for p in products:
-            # The rate limiter inside StealthScraper will automatically pause this loop 
-            # if we hit the same domain too many times rapidly.
             scrape_product(p['id'])
     except Exception as e:
         print(f"[Scheduler] Error during batch scrape: {e}")
@@ -46,22 +45,17 @@ def run_scheduled_scrapes():
     print("[Scheduler] Routine batch scrape complete.")
 
 scheduler = BackgroundScheduler()
-# Schedule the job to run every 6 hours (4 times a day)
 scheduler.add_job(run_scheduled_scrapes, 'interval', hours=6)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup Events
     init_db()
     scheduler.start()
     print("Background scheduler started (Running every 6 hours).")
     yield
-    # Shutdown Events
     scheduler.shutdown()
 
 app = FastAPI(lifespan=lifespan)
-
-# Mount the screenshots directory so the UI can access the images
 app.mount("/screenshots", StaticFiles(directory="screenshots"), name="screenshots")
 
 # --- Pydantic Models ---
@@ -69,6 +63,7 @@ class TrackRequest(BaseModel):
     url: str
     name_selector: str
     price_selector: str
+    cookies_json: Optional[str] = None
     alert_email: Optional[str] = None
     alert_threshold: Optional[float] = None
     alert_lowest_30d: bool = False
@@ -77,6 +72,7 @@ class UpdateRequest(BaseModel):
     url: str
     name_selector: str
     price_selector: str
+    cookies_json: Optional[str] = None
     alert_email: Optional[str] = None
     alert_threshold: Optional[float] = None
     alert_lowest_30d: bool = False
@@ -90,7 +86,6 @@ def get_db_connection():
     conn.execute("PRAGMA foreign_keys = 1") 
     return conn
 
-# --- Email Sender Function ---
 def send_alert_email(to_email: str, subject: str, html_body: str):
     if not to_email or not SMTP_PASS:
         print("Skipping email: Missing recipient or SMTP password in .env")
@@ -129,9 +124,16 @@ def scrape_product(product_id: int):
 
     scraper = StealthScraper()
     try:
+        # Check for cookies and inject them if present
+        if product['cookies_json']:
+            try:
+                cookie_data = json.loads(product['cookies_json'])
+                if isinstance(cookie_data, list):
+                    scraper.load_cookies(product['url'], cookie_data)
+            except Exception as json_err:
+                print(f"Failed to parse cookies_json for product {product_id}: {json_err}")
+
         soup = scraper.fetch_page(product['url'])
-        
-        # Take a screenshot of the current page state
         scraper.take_screenshot(f"screenshots/{product_id}.png")
         
         price = None
@@ -141,7 +143,6 @@ def scrape_product(product_id: int):
         if name_element:
             product_name = name_element.text.strip()
 
-        # Extract Price (Loop through all matches and find the lowest)
         price_elements = soup.select(product['price_selector'])
         if price_elements:
             extracted_prices = []
@@ -151,7 +152,7 @@ def scrape_product(product_id: int):
                     try:
                         extracted_prices.append(float(clean_price))
                     except ValueError:
-                        pass # Ignore if it can't be parsed into a float
+                        pass
             
             if extracted_prices:
                 price = min(extracted_prices)
@@ -162,7 +163,7 @@ def scrape_product(product_id: int):
             new_price_id = c.lastrowid
             conn.commit()
             
-            # --- EVALUATE ALERTS ---
+            # Alerts
             if product['alert_email']:
                 c.execute("SELECT price FROM prices WHERE product_id = ? ORDER BY timestamp DESC LIMIT 2", (product_id,))
                 recent = c.fetchall()
@@ -230,9 +231,9 @@ def track_new_product(req: TrackRequest, background_tasks: BackgroundTasks):
     
     try:
         c.execute('''
-            INSERT INTO products (name, url, domain, name_selector, price_selector, last_status, alert_email, alert_threshold, alert_lowest_30d) 
-            VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?)
-        ''', ("Pending Scrape...", req.url, domain, req.name_selector, req.price_selector, req.alert_email, req.alert_threshold, req.alert_lowest_30d))
+            INSERT INTO products (name, url, domain, name_selector, price_selector, cookies_json, last_status, alert_email, alert_threshold, alert_lowest_30d) 
+            VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
+        ''', ("Pending Scrape...", req.url, domain, req.name_selector, req.price_selector, req.cookies_json, req.alert_email, req.alert_threshold, req.alert_lowest_30d))
         product_id = c.lastrowid
         conn.commit()
         background_tasks.add_task(scrape_product, product_id)
@@ -262,9 +263,9 @@ def update_product(product_id: int, req: UpdateRequest):
     domain = f"{extracted.domain}.{extracted.suffix}"
     
     c.execute('''
-        UPDATE products SET url = ?, domain = ?, name_selector = ?, price_selector = ?, alert_email = ?, alert_threshold = ?, alert_lowest_30d = ?
+        UPDATE products SET url = ?, domain = ?, name_selector = ?, price_selector = ?, cookies_json = ?, alert_email = ?, alert_threshold = ?, alert_lowest_30d = ?
         WHERE id = ?
-    ''', (req.url, domain, req.name_selector, req.price_selector, req.alert_email, req.alert_threshold, req.alert_lowest_30d, product_id))
+    ''', (req.url, domain, req.name_selector, req.price_selector, req.cookies_json, req.alert_email, req.alert_threshold, req.alert_lowest_30d, product_id))
     conn.commit()
     conn.close()
     return {"status": "success"}

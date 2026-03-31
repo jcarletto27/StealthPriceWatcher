@@ -1,6 +1,7 @@
 import undetected_chromedriver as uc
 from bs4 import BeautifulSoup
 from rate_limiter import DomainRateLimiter
+import time
 
 class StealthScraper:
     def __init__(self):
@@ -27,6 +28,40 @@ class StealthScraper:
             browser_executable_path='/usr/bin/chromium',
             version_main=145 # Locked to match Debian's repository version
         )
+
+    def load_cookies(self, url, cookies_list):
+        """
+        Injects a list of cookies into the browser.
+        cookies_list should be a list of dicts: [{'name': 'foo', 'value': 'bar'}, ...]
+        """
+        try:
+            # We must navigate to the domain first to set cookies for it
+            print(f"Initial navigation to {url} to set cookies...")
+            self.driver.get(url)
+            time.sleep(2) # Brief wait for initial load
+            
+            for cookie in cookies_list:
+                # Basic cleaning of cookie dict to ensure Selenium compatibility
+                # We strip 'domain' usually because Selenium handles it based on current page
+                # but we keep essential 'name' and 'value'.
+                c = {
+                    'name': cookie.get('name'),
+                    'value': cookie.get('value')
+                }
+                # Optional keys
+                if 'path' in cookie: c['path'] = cookie['path']
+                if 'secure' in cookie: c['secure'] = cookie['secure']
+                
+                try:
+                    self.driver.add_cookie(c)
+                except Exception as cookie_err:
+                    print(f"Skipping cookie {c.get('name')}: {cookie_err}")
+            
+            print("Cookies injected. Refreshing page...")
+            self.driver.refresh()
+            time.sleep(2)
+        except Exception as e:
+            print(f"Error loading cookies: {e}")
 
     def fetch_page(self, url):
         self.limiter.wait_if_needed(url)

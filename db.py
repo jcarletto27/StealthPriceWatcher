@@ -4,7 +4,7 @@ def init_db():
     conn = sqlite3.connect('tracker.db')
     c = conn.cursor()
     
-    # Added alert columns
+    # Updated table schema with cookies_json column
     c.execute('''
         CREATE TABLE IF NOT EXISTS products (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -13,6 +13,7 @@ def init_db():
             domain TEXT,
             name_selector TEXT,
             price_selector TEXT,
+            cookies_json TEXT,
             last_status TEXT DEFAULT 'pending',
             last_error TEXT,
             alert_email TEXT,
